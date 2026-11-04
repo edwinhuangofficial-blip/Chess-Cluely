@@ -11,7 +11,13 @@ public:
 
 protected:
     void paintEvent(QPaintEvent *event) override; //declare our custom drawing function
+    void mousePressEvent(QMouseEvent *event) override; //handle mouse presses on the board widget
 private:
+    QRectF boardRect() const; //calculate the board rectangle from the current widget size
+    
+    int selectedRow = -1; //start with no selected row
+    int selectedColumn = -1; //start with no selected column
+    
     QString positionRows[8] = { //keep the current position between repaints
         "rnbqkbnr",
         "pppppppp",

@@ -5,13 +5,109 @@
 #include <QRectF> //represent rectangles with fractional coordinates
 #include <QFont> //provide font settings
 #include <QString> //provide qt's text type
+#include <QDebug>
+#include <QMouseEvent>
 
 #include <algorithm> //provide std::min
+#include <cstdlib> //provide std::abs for integers
 
 ChessBoard::ChessBoard(QWidget *parent) //run when a board is created
     : QWidget(parent) //initialize the qt widget with its parent
 {
     setMinimumSize(240, 240); //prevent the board widget from becoming too small
+}
+const double labelSpace = 24.0; //reserve space around the board for labels
+
+QRectF ChessBoard::boardRect() const
+{
+    const double boardSize = std::min(width(), height()) - 2.0 * labelSpace;
+    const double offsetX = (width() - boardSize) / 2.0;
+    const double offsetY = (height() - boardSize) / 2.0;
+
+    return QRectF(offsetX, offsetY, boardSize, boardSize); //return the centered board rectangle
+}
+
+void ChessBoard::mousePressEvent(QMouseEvent *event)
+{
+    if (event->button() != Qt::LeftButton) {
+        return; //only handle left clicks
+    }
+
+    const QRectF board = boardRect();
+    const QPointF click = event->position();
+    if (click.x() < board.left() || click.x() >= board.right() ||
+        click.y() < board.top() || click.y() >= board.bottom()) {
+        return; //ignore clicks on the labels or outside the board
+    }
+
+    const double squareSize = board.width() / 8.0;
+    const int column = static_cast<int>((click.x() - board.left()) / squareSize);
+    const int row = static_cast<int>((click.y() - board.top()) / squareSize);
+
+    const QString piece = positionRows[row].mid(column, 1);
+    if (piece == ".") {
+        if (selectedRow == -1) {
+            return; //an empty square only acts as a destination if a piece is selected
+        }
+
+        const QString movingPiece = positionRows[selectedRow].mid(selectedColumn, 1);
+
+    if (movingPiece == "P" || movingPiece == "p") {//PAWN RULES OF MOVING
+        const bool white = movingPiece == "P";
+        const int nextRow = selectedRow + (white ? -1 : 1);
+        const bool openingRows = white ? (selectedRow == 6 && row == 4)
+                                    : (selectedRow == 1 && row == 3);
+        const bool canMoveTwo = openingRows && positionRows[nextRow].mid(selectedColumn, 1) == ".";
+
+        if (column != selectedColumn || (row != nextRow && !canMoveTwo)) {
+            return; //reject sideways moves and moves beyond the allowed distance
+        }
+    }
+
+    if (movingPiece == "N" || movingPiece == "n") {//KNIGHT RULES
+        const int rowDistance = std::abs(row - selectedRow);
+        const int columnDistance = std::abs(column - selectedColumn);
+
+        const bool twoRowsOneColumn = rowDistance == 2 && columnDistance == 1;
+        const bool oneRowTwoColumns = rowDistance == 1 && columnDistance == 2;
+
+        if (!twoRowsOneColumn && !oneRowTwoColumns) {
+            return; //keep the knight selected if neither l-shape matches
+        }
+    }
+    if (movingPiece == "R" || movingPiece == "r") {//ROOK RULES
+        const int rowChange = row - selectedRow;
+        const int columnChange = column - selectedColumn;
+
+        if (rowChange != 0 && columnChange != 0) {
+            return; //a rook cannot change both its row and its column
+        }
+
+        const int distance = std::abs(rowChange) + std::abs(columnChange);
+        const int rowStep = rowChange / distance;
+        const int columnStep = columnChange / distance;
+
+        for (int step = 1; step < distance; ++step) {
+            const int pathRow = selectedRow + step * rowStep;
+            const int pathColumn = selectedColumn + step * columnStep;
+
+            if (positionRows[pathRow].mid(pathColumn, 1) != ".") {
+                return; //a piece blocks the rook's path
+            }
+        }
+    }
+        positionRows[row].replace(column, 1, movingPiece); //put the piece on the clicked square
+        positionRows[selectedRow].replace(selectedColumn, 1, "."); //empty the original square
+
+        selectedRow = -1;
+        selectedColumn = -1;
+        update(); //redraw the board from the updated position
+        return; //finish the move without selecting the destination
+    }
+
+    selectedRow = row;
+    selectedColumn = column;
+    update(); //ask qt to redraw the widget with the new selection
 }
 
 void ChessBoard::paintEvent(QPaintEvent *) //draw whenever qt requests a repaint
@@ -21,12 +117,11 @@ void ChessBoard::paintEvent(QPaintEvent *) //draw whenever qt requests a repaint
     const QColor lightSquare("#636161"); //set the light square color
     const QColor darkSquare("#389547"); //set the dark square color
 
-    const double labelSpace = 24.0; //reserve space for labels on each edge
-    const double boardSize = std::min(width(), height()) - 2.0 * labelSpace; //leave room for labels on both sides
-    const double squareSize = boardSize / 8.0; //divide the board into eight equal parts
-
-    const double offsetX = (width() - boardSize) / 2.0; //center the board horizontally
-    const double offsetY = (height() - boardSize) / 2.0; //center the board vertically
+    const QRectF board = boardRect(); //use the same rectangle for drawing and clicks
+    const double boardSize = board.width();
+    const double squareSize = boardSize / 8.0;
+    const double offsetX = board.x();
+    const double offsetY = board.y();
 
     for (int row = 0; row < 8; ++row) { //visit each row from top to bottom
         for (int column = 0; column < 8; ++column) { //visit each column from left to right
@@ -39,10 +134,11 @@ void ChessBoard::paintEvent(QPaintEvent *) //draw whenever qt requests a repaint
                 squareSize //set its height
             );
 
-            painter.fillRect( //fill the square with its chosen color
-                square,
-                isLightSquare ? lightSquare : darkSquare //choose light when true and dark otherwise
-            );
+            if (row == selectedRow && column == selectedColumn) {
+                painter.fillRect(square, QColor("#d4a72c")); //highlight the selected square
+            } else {
+                painter.fillRect(square, isLightSquare ? lightSquare : darkSquare);
+            }
         }
     }
     painter.save(); //remember the painter's current settings
