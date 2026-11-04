@@ -5,14 +5,20 @@ find_package(Qt6 6.5 REQUIRED COMPONENTS Core Widgets LinguistTools)
 
 qt_standard_project_setup()
 
-qt_add_executable(chess_cluely_qt
+qt_add_executable(chess_cluely_qt #define the application and its source files
     WIN32 MACOSX_BUNDLE
     main.cpp
     mainwindow.cpp
     mainwindow.h
     mainwindow.ui
-    chessboard.cpp
-    chessboard.h
+    chessboard.cpp #compile the board implementation
+    chessboard.h #include the board declaration in the project
+)
+
+qt_add_resources(chess_cluely_qt "app_resources" #bundle files into the application
+    PREFIX "/" #place them under the resource root
+    FILES
+        assets/icon.png #include the icon image
 )
 
 qt_add_translations(
