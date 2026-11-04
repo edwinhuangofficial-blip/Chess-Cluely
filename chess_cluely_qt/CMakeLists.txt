@@ -11,6 +11,8 @@ qt_add_executable(chess_cluely_qt
     mainwindow.cpp
     mainwindow.h
     mainwindow.ui
+    chessboard.cpp
+    chessboard.h
 )
 
 qt_add_translations(
