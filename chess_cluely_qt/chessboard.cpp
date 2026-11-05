@@ -45,6 +45,42 @@ void ChessBoard::mousePressEvent(QMouseEvent *event)
     const int row = static_cast<int>((click.y() - board.top()) / squareSize);
 
     const QString piece = positionRows[row].mid(column, 1);
+    const bool empty = piece == ".";
+
+    if (selectedRow == -1 && empty) {
+        return; //there is no piece to select or move
+    }
+
+    QString movingPiece;
+    if (selectedRow != -1) {
+        movingPiece = positionRows[selectedRow].mid(selectedColumn, 1);
+    }
+
+    const bool canTryCapture = selectedRow != -1 && !empty
+        && piece != "K" && piece != "k"
+        && (piece.at(0).isUpper() != movingPiece.at(0).isUpper());
+
+    if (empty || canTryCapture) {
+        if (movingPiece == "P" || movingPiece == "p") {
+            const bool white = movingPiece == "P";
+            const int nextRow = selectedRow + (white ? -1 : 1);
+
+            if (empty) {
+                const bool openingRows = white ? (selectedRow == 6 && row == 4)
+                                            : (selectedRow == 1 && row == 3);
+                const bool canMoveTwo = openingRows
+                    && positionRows[nextRow].mid(selectedColumn, 1) == ".";
+
+                if (column != selectedColumn || (row != nextRow && !canMoveTwo)) {
+                    return; //a pawn moves straight into an empty square
+                }
+            } else {
+                const int columnDistance = std::abs(column - selectedColumn);
+                if (row != nextRow || columnDistance != 1) {
+                    return; //a pawn captures one square diagonally forward
+                }
+            }
+        }
     if (piece == ".") {
         if (selectedRow == -1) {
             return; //an empty square only acts as a destination if a piece is selected
@@ -75,15 +111,24 @@ void ChessBoard::mousePressEvent(QMouseEvent *event)
             return; //keep the knight selected if neither l-shape matches
         }
     }
-    if (movingPiece == "R" || movingPiece == "r") {//ROOK RULES
+    const bool isRook = movingPiece == "R" || movingPiece == "r";
+    const bool isQueen = movingPiece == "Q" || movingPiece == "q";
+    const bool isBishop = movingPiece == "B" || movingPiece == "b";
+
+    if (isRook || isQueen || isBishop) {
         const int rowChange = row - selectedRow;
         const int columnChange = column - selectedColumn;
+        const bool straight = rowChange == 0 || columnChange == 0;
+        const bool diagonal = std::abs(rowChange) == std::abs(columnChange);
 
-        if (rowChange != 0 && columnChange != 0) {
-            return; //a rook cannot change both its row and its column
+        const bool allowedStraight = straight && (isRook || isQueen);
+        const bool allowedDiagonal = diagonal && (isBishop || isQueen);
+
+        if (!allowedStraight && !allowedDiagonal) {
+            return; //the move shape must match the selected piece
         }
 
-        const int distance = std::abs(rowChange) + std::abs(columnChange);
+        const int distance = std::max(std::abs(rowChange), std::abs(columnChange));
         const int rowStep = rowChange / distance;
         const int columnStep = columnChange / distance;
 
@@ -92,10 +137,18 @@ void ChessBoard::mousePressEvent(QMouseEvent *event)
             const int pathColumn = selectedColumn + step * columnStep;
 
             if (positionRows[pathRow].mid(pathColumn, 1) != ".") {
-                return; //a piece blocks the rook's path
+                return; //a piece blocks the path
             }
         }
     }
+    if (movingPiece == "K" || movingPiece == "k") {
+    const int rowDistance = std::abs(row - selectedRow);
+    const int columnDistance = std::abs(column - selectedColumn);
+
+    if (rowDistance > 1 || columnDistance > 1) {
+        return; //keep the king selected if either distance is too large
+    }
+}
         positionRows[row].replace(column, 1, movingPiece); //put the piece on the clicked square
         positionRows[selectedRow].replace(selectedColumn, 1, "."); //empty the original square
 
@@ -114,8 +167,8 @@ void ChessBoard::paintEvent(QPaintEvent *) //draw whenever qt requests a repaint
 {
     QPainter painter(this); //draw onto this board widget
 
-    const QColor lightSquare("#636161"); //set the light square color
-    const QColor darkSquare("#389547"); //set the dark square color
+    const QColor lightSquare("#7b7979"); //set the light square color
+    const QColor darkSquare("#65c9ff"); //set the dark square color
 
     const QRectF board = boardRect(); //use the same rectangle for drawing and clicks
     const double boardSize = board.width();
