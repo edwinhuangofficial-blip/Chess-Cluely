@@ -17,6 +17,8 @@ ChessBoard::ChessBoard(QWidget *parent) //run when a board is created
     setMinimumSize(240, 240); //prevent the board widget from becoming too small
 }
 const double labelSpace = 24.0; //reserve space around the board for labels
+int lastDoublePawnRow = -1; //no two-square pawn move to remember yet
+int lastDoublePawnColumn = -1;
 
 QRectF ChessBoard::boardRect() const
 {
@@ -43,7 +45,12 @@ void ChessBoard::mousePressEvent(QMouseEvent *event)
     const double squareSize = board.width() / 8.0;
     const int column = static_cast<int>((click.x() - board.left()) / squareSize);
     const int row = static_cast<int>((click.y() - board.top()) / squareSize);
-
+    if (row == selectedRow && column == selectedColumn) {
+        selectedRow = -1;
+        selectedColumn = -1;
+        update(); //redraw the board without the highlight
+        return; //finish handling this click before it selects the piece again
+    }
     const QString piece = positionRows[row].mid(column, 1);
     const bool empty = piece == ".";
 
@@ -81,24 +88,6 @@ void ChessBoard::mousePressEvent(QMouseEvent *event)
                 }
             }
         }
-    if (piece == ".") {
-        if (selectedRow == -1) {
-            return; //an empty square only acts as a destination if a piece is selected
-        }
-
-        const QString movingPiece = positionRows[selectedRow].mid(selectedColumn, 1);
-
-    if (movingPiece == "P" || movingPiece == "p") {//PAWN RULES OF MOVING
-        const bool white = movingPiece == "P";
-        const int nextRow = selectedRow + (white ? -1 : 1);
-        const bool openingRows = white ? (selectedRow == 6 && row == 4)
-                                    : (selectedRow == 1 && row == 3);
-        const bool canMoveTwo = openingRows && positionRows[nextRow].mid(selectedColumn, 1) == ".";
-
-        if (column != selectedColumn || (row != nextRow && !canMoveTwo)) {
-            return; //reject sideways moves and moves beyond the allowed distance
-        }
-    }
 
     if (movingPiece == "N" || movingPiece == "n") {//KNIGHT RULES
         const int rowDistance = std::abs(row - selectedRow);
@@ -147,8 +136,16 @@ void ChessBoard::mousePressEvent(QMouseEvent *event)
 
     if (rowDistance > 1 || columnDistance > 1) {
         return; //keep the king selected if either distance is too large
+        }
     }
-}
+        lastDoublePawnRow = -1; //clear the previous move's record
+        lastDoublePawnColumn = -1;
+
+        const bool pawnMoved = movingPiece == "P" || movingPiece == "p";
+        if (pawnMoved && std::abs(row - selectedRow) == 2) {
+            lastDoublePawnRow = row; //remember where the pawn landed
+            lastDoublePawnColumn = column;
+        }
         positionRows[row].replace(column, 1, movingPiece); //put the piece on the clicked square
         positionRows[selectedRow].replace(selectedColumn, 1, "."); //empty the original square
 
